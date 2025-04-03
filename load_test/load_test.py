@@ -55,9 +55,9 @@ class MongoDBUser(User):
 
             self.environment.events.request.fire(
                 request_type="mongodb",
-                name="bulk_insert",
+                name="insert",
                 response_time=response_time,
-                response_length=len(result.inserted_ids),  # Number of inserted documents
+                response_length=batch_size
                 exception=None,
             )
         except Exception as e:
