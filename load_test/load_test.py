@@ -1,15 +1,14 @@
 from locust import User, task, constant, events
 from pymongo import MongoClient
-import sys
-import json
+from faker import Faker
+import random
 import time
-import itertools
 
 class MongoDBUser(User):
     wait_time = constant(0)
 
     def on_start(self):
-        """Connect to MongoDB Atlas and load queries from stdin at the start of the test."""
+        """Connect to MongoDB Atlas at the start of the test."""
         # Read the MongoDB URI from Locust environment arguments
         mongodb_uri = self.environment.parsed_options.mongodb_uri
 
@@ -17,54 +16,54 @@ class MongoDBUser(User):
             raise ValueError("You must provide a MongoDB URI using the --mongodb-uri option.")
 
         self.client = MongoClient(mongodb_uri)
-        self.db = self.client["rms"]
-        self.collection = self.db["apiCharges"]
-
-        # Load query data from file
-        try:
-            with open('sample_documents.json', 'r') as f:
-                self.query_data = json.load(f)  # Read the JSON array from the file
-            
-            # Check if the loaded data is a list (array)
-            if not isinstance(self.query_data, list):
-                raise ValueError("Expected a JSON array of queries.")
-                
-        except Exception as e:
-            raise ValueError(f"Error loading query data from file: {e}")
-
-
-        # Create a cyclic iterator to execute queries in sequence
-        self.query_iterator = itertools.cycle(self.query_data)
+        self.db = self.client["cars"]
+        self.collection = self.db["measurements"]
+        self.fake = Faker()
 
     def on_stop(self):
         """Close the MongoDB connection."""
         self.client.close()
 
-    @task
-    def query_mongodb(self):
-        """Query MongoDB RMS with random values"""
-        query = next(self.query_iterator)
+    def generate_fake_measurement(self):
+        return {
+            "measurement_id": self.fake.uuid4(),
+            "car_id": self.fake.bothify(text='car-##'),
+            "customer_id": self.fake.bothify(text='cust-##'),
+            "sensor_id": self.fake.bothify(text='sensor-##'),
+            "measurement_time": self.fake.iso8601(),
+            "measurement_type": self.fake.random_element(elements=("gps_location", "engine_telemetry", "environmental", "electrical", "tire_monitoring")),
+            "measurement_data": {
+                "latitude": float(self.fake.latitude()),
+                "longitude": float(self.fake.longitude()),
+                "altitude": float(random.uniform(100, 3000)),  # Ensure this is a float
+                "speed": float(random.uniform(0, 150)),       # Ensure this is a float
+                "bearing": float(random.uniform(0, 360)),     # Ensure this is a float
+                "accuracy": float(random.uniform(0.0, 10.0)), # Ensure this is a float
+            }
+        }
 
-        # Clean up the query by removing keys with None values
-        query = {k: v for k, v in query.items() if v is not None}
+    @task
+    def insert_mongodb(self):
+        """Insert generated documents into MongoDB RMS"""
+        document = self.generate_fake_measurement()
 
         start_time = time.time()
         try:
-            result = list(self.collection.find(query).limit(10))
+            result = self.collection.insert_one(document)
+            response_time = (time.time() - start_time) * 1000  # Convert to milliseconds
 
-            response_time = (time.time() - start_time) * 1000
             self.environment.events.request.fire(
                 request_type="mongodb",
-                name="query",
+                name="insert",
                 response_time=response_time,
-                response_length=len(result),
+                response_length=1,
                 exception=None,
             )
         except Exception as e:
             response_time = (time.time() - start_time) * 1000
             self.environment.events.request.fire(
                 request_type="mongodb",
-                name="query",
+                name="insert",
                 response_time=response_time,
                 response_length=0,
                 exception=e,
