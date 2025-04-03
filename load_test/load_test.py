@@ -57,7 +57,7 @@ class MongoDBUser(User):
                 request_type="mongodb",
                 name="insert",
                 response_time=response_time,
-                response_length=batch_size
+                response_length=batch_size,
                 exception=None,
             )
         except Exception as e:
