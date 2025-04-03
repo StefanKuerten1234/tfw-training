@@ -70,6 +70,34 @@ class MongoDBUser(User):
                 exception=e,
             )
 
+    @task
+    def query_mongodb(self):
+        """Randomly query the MongoDB RMS"""
+        # Create a random query based on the fields you have in your documents
+        query = {
+            "measurement_type": self.fake.random_element(elements=("gps_location", "engine_telemetry", "environmental", "electrical", "tire_monitoring")),
+            "measurement_data.speed": {"$gt": random.uniform(30, 120)},
+        }
+        start_time = time.time()
+        try:
+            result = list(self.collection.find(query).limit(10))  # Limit the result for performance
+            response_time = (time.time() - start_time) * 1000  # Convert to milliseconds
+            self.environment.events.request.fire(
+                request_type="mongodb",
+                name="query",
+                response_time=response_time,
+                response_length=len(result),  # Number of documents returned
+                exception=None,
+            )
+        except Exception as e:
+            response_time = (time.time() - start_time) * 1000
+            self.environment.events.request.fire(
+                request_type="mongodb",
+                name="query",
+                response_time=response_time,
+                response_length=0,
+                exception=e,
+            )
 
 # Add custom Locust command-line arguments
 @events.init_command_line_parser.add_listener
