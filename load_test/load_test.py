@@ -42,33 +42,33 @@ class MongoDBUser(User):
             }
         }
 
-@task
-def insert_mongodb_bulk(self):
-    """Bulk insert generated documents into MongoDB RMS"""
-    batch_size = 400  
-    documents = [self.generate_fake_measurement() for _ in range(batch_size)]
+    @task
+    def insert_mongodb_bulk(self):
+        """Bulk insert generated documents into MongoDB RMS"""
+        batch_size = 400  
+        documents = [self.generate_fake_measurement() for _ in range(batch_size)]
 
-    start_time = time.time()
-    try:
-        result = self.collection.insert_many(documents)
-        response_time = (time.time() - start_time) * 1000  # Convert to milliseconds
+        start_time = time.time()
+        try:
+            result = self.collection.insert_many(documents)
+            response_time = (time.time() - start_time) * 1000  # Convert to milliseconds
 
-        self.environment.events.request.fire(
-            request_type="mongodb",
-            name="bulk_insert",
-            response_time=response_time,
-            response_length=len(result.inserted_ids),  # Number of inserted documents
-            exception=None,
-        )
-    except Exception as e:
-        response_time = (time.time() - start_time) * 1000
-        self.environment.events.request.fire(
-            request_type="mongodb",
-            name="bulk_insert",
-            response_time=response_time,
-            response_length=0,
-            exception=e,
-        )
+            self.environment.events.request.fire(
+                request_type="mongodb",
+                name="bulk_insert",
+                response_time=response_time,
+                response_length=len(result.inserted_ids),  # Number of inserted documents
+                exception=None,
+            )
+        except Exception as e:
+            response_time = (time.time() - start_time) * 1000
+            self.environment.events.request.fire(
+                request_type="mongodb",
+                name="bulk_insert",
+                response_time=response_time,
+                response_length=0,
+                exception=e,
+            )
 
 
 # Add custom Locust command-line arguments
